@@ -2,4 +2,4 @@
 builder = "dockerfile"
 
 [deploy]
-startCommand = "source venv/bin/activate && reflex run --env prod"
+startCommand = "reflex run --env prod"
