@@ -1,6 +1,5 @@
 import reflex as rx
 import uuid
-import asyncio
 from .db import init_db, add_message, get_conversation
 from .llm import stream_chat
 
@@ -17,10 +16,9 @@ class ChatState(rx.State):
         if not self.session_id:
             self.session_id = str(uuid.uuid4())
 
-    async def load_conversation(self):
-        """Load messages from DB."""
-        if self.session_id:
-            self.messages = await get_conversation(self.session_id)
+    def set_input(self, value: str):
+        """Set input value."""
+        self.input_value = value
 
     async def send_message(self):
         """Send user message and get AI response."""
@@ -45,10 +43,6 @@ class ChatState(rx.State):
         ai_response = ""
         async for chunk in stream_chat(context):
             ai_response += chunk
-            # Update UI in real-time
-            self.messages[-1] = {"role": "user", "content": user_msg}
-            # Emit a temporary AI message for streaming
-            yield
 
         # Save AI response to DB
         if ai_response:
@@ -58,63 +52,66 @@ class ChatState(rx.State):
         self.is_loading = False
 
 
-def chat_message(msg: dict) -> rx.Component:
-    """Render a single message."""
-    is_user = msg["role"] == "user"
-    return rx.box(
-        rx.text(
-            msg["content"],
-            font_size="md",
-            padding="1rem",
-            bg=rx.cond(is_user, "blue.100", "gray.100"),
-            border_radius="md",
-            max_width="80%",
-        ),
-        align_items="flex-end" if is_user else "flex-start",
-        justify_content="flex-end" if is_user else "flex-start",
-        display="flex",
-        margin_bottom="1rem",
-    )
-
-
 def index() -> rx.Component:
     """Main chat page."""
     return rx.container(
-        rx.vstack(
-            rx.heading("Snakky AI Chat", size="lg"),
-            rx.box(
-                rx.vstack(
-                    rx.foreach(ChatState.messages, chat_message),
-                    spacing="0.5rem",
-                    height="400px",
+        rx.center(
+            rx.vstack(
+                rx.heading("Snakky AI Chat"),
+                rx.box(
+                    rx.cond(
+                        ChatState.messages.length() > 0,
+                        rx.vstack(
+                            rx.foreach(ChatState.messages, lambda msg: rx.box(
+                                rx.box(
+                                    rx.text(msg["content"]),
+                                    padding="12px",
+                                    bg=rx.cond(msg["role"] == "user", "#3b82f6", "#e5e7eb"),
+                                    border_radius="8px",
+                                    color=rx.cond(msg["role"] == "user", "white", "black"),
+                                    max_width="70%",
+                                ),
+                                display="flex",
+                                justify_content=rx.cond(msg["role"] == "user", "flex-end", "flex-start"),
+                                width="100%",
+                                margin_bottom="12px",
+                            )),
+                            width="100%",
+                            spacing="2",
+                        ),
+                        rx.text("No messages yet. Start chatting!", color="#9ca3af"),
+                    ),
+                    width="100%",
+                    min_height="400px",
+                    max_height="400px",
                     overflow_y="auto",
-                    border="1px solid #ccc",
-                    padding="1rem",
-                    border_radius="md",
+                    border="1px solid #e5e7eb",
+                    padding="16px",
+                    border_radius="8px",
+                    bg="#fafafa",
                 ),
+                rx.hstack(
+                    rx.input(
+                        placeholder="Type your message...",
+                        value=ChatState.input_value,
+                        on_change=ChatState.set_input,
+                        width="100%",
+                    ),
+                    rx.button(
+                        "Send",
+                        on_click=ChatState.send_message,
+                        is_loading=ChatState.is_loading,
+                    ),
+                    spacing="2",
+                    width="100%",
+                ),
+                spacing="4",
                 width="100%",
+                max_width="600px",
             ),
-            rx.input(
-                placeholder="Type your message...",
-                value=ChatState.input_value,
-                on_change=ChatState.set_input_value,
-                on_blur=ChatState.send_message,
-                width="100%",
-                padding="0.5rem",
-            ),
-            rx.button(
-                "Send",
-                on_click=ChatState.send_message,
-                is_loading=ChatState.is_loading,
-                width="100%",
-            ),
-            spacing="1rem",
-            width="100%",
-            max_width="600px",
-            margin="0 auto",
-            padding="2rem",
         ),
-        on_load=ChatState.initialize_session,
+        on_mount=ChatState.initialize_session,
+        padding="32px",
     )
 
 
