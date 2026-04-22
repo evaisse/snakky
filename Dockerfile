@@ -16,4 +16,4 @@ ENV DB_PATH=/data/aiktivist.db
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "python -m reflex init && reflex run --env prod"]
+CMD ["sh", "-c", "reflex init && reflex run --env prod"]
